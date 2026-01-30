@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Capital Pro</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <!-- HEADER -->
+    <header class="header">
+      <h1>Capital Pro</h1>
+      <p class="subtitle">💼 Business Tracker</p>
+    </header>
+
+    <!-- ADD SALE FORM -->
+    <section class="form-section">
+      <h2>Add New Sale</h2>
+      <form onsubmit="event.preventDefault(); addSale();" class="form-grid">
+        <div class="form-group">
+          <label for="itemName">Item Name</label>
+          <input id="itemName" type="text" placeholder="e.g., Cement" />
+        </div>
+
+        <div class="form-group">
+          <label for="qty">Quantity</label>
+          <input id="qty" type="number" placeholder="1" min="1" />
+        </div>
+
+        <div class="form-group">
+          <label for="costPrice">Cost Price</label>
+          <input id="costPrice" type="number" placeholder="0" />
+        </div>
+
+        <div class="form-group">
+          <label for="sellPrice">Selling Price</label>
+          <input id="sellPrice" type="number" placeholder="0" />
+        </div>
+
+        <button type="submit" class="btn btn-primary">✓ Save Sale</button>
+      </form>
+    </section>
+
+    <!-- SALES CARDS SECTION -->
+    <section class="sales-section">
+      <h2>Sales History</h2>
+      <div id="salesContainer" class="sales-carousel">
+        <div class="empty-state">No sales yet. Add your first sale!</div>
+      </div>
+    </section>
+
+    <!-- SUMMARY SECTION (Fixed at bottom) -->
+    <section class="summary-section">
+      <h2>Summary</h2>
+      <div class="summary-grid">
+        <div class="summary-card shop-capital">
+          <p class="summary-label">Shop Capital</p>
+          <p class="summary-value" id="capital">₦0</p>
+        </div>
+        <div class="summary-card external-capital">
+          <p class="summary-label">External Capital</p>
+          <p class="summary-value" id="externalCapital">₦0</p>
+        </div>
+        <div class="summary-card total-profit">
+          <p class="summary-label">Total Profit</p>
+          <p class="summary-value" id="profit">₦0</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- EXPORT SECTION -->
+    <section class="export-section">
+      <button onclick="exportCSV()" class="btn btn-secondary">📥 Export to CSV</button>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
