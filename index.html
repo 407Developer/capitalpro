@@ -1,11 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Capital Pro</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link rel="stylesheet" href="style.css" />
 </head>
+
 <body>
   <div class="container">
     <!-- HEADER -->
@@ -14,6 +18,12 @@
       <p class="subtitle">💼 Business Tracker</p>
     </header>
 
+      <!-- analytics-section -->
+  <section class="analytics-section">
+    <canvas id="salesChart" width="400" height="200"></canvas>
+  </section>
+  <!-- End of analytics-section -->
+   
     <!-- ADD SALE FORM -->
     <section class="form-section">
       <h2>Add New Sale</h2>
@@ -77,4 +87,5 @@
 
   <script src="app.js"></script>
 </body>
+
 </html>

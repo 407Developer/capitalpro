@@ -40,7 +40,17 @@ body {
     font-weight: 300;
 }
 
+
+
 /* SECTIONS */
+
+.analytics-section {
+    background: white;
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
 .form-section,
 .sales-section,
 .summary-section,
@@ -266,6 +276,39 @@ body {
     padding-top: 10px;
     text-align: right;
 }
+
+
+.sale-date-badge {
+    font-size: 0.75rem;
+    color: #666;
+    font-weight: bold;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+}
+
+.filter-btn {
+    padding: 6px 12px;
+    border-radius: 20px;
+    border: 1px solid #007bff;
+    background: transparent;
+    color: #007bff;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.filter-btn:hover {
+    background: #007bff;
+    color: white;
+}
+
+.source-tag {
+    font-size: 0.7rem;
+    background: #e9ecef;
+    padding: 2px 8px;
+    border-radius: 10px;
+    float: right;
+}
+
 
 .profit-display {
     font-size: 1.3em;
