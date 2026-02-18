@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SaverSheet - Daily Tracker</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">
+                <span class="icon">💰</span>
+                <h1>SaverSheet</h1>
+            </div>
+            <p class="subtitle">₦1,000 Daily Saving Plan</p>
+        </header>
+
+        <!-- DASHBOARD: MEMBER STATUS -->
+        <section class="dashboard" id="memberGrid">
+            <div class="member-card loading-state">
+                <p>Connecting to database...</p>
+            </div>
+        </section>
+
+        <!-- RECORD FORM (Praise Only) -->
+        <section class="form-section">
+            <h2>Record Payment</h2>
+            <form id="saveForm" onsubmit="event.preventDefault(); submitPayment();" class="save-form">
+                <div class="form-group">
+                    <label for="memberName">Member</label>
+                    <select id="memberName" required>
+                        <option value="" disabled selected>Select Saver</option>
+                        <option value="Divine">Divine</option>
+                        <option value="Wisdom">Wisdom</option>
+                        <option value="Praise">Praise</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="amount">Amount (₦)</label>
+                    <input type="number" id="amount" placeholder="e.g. 3000" min="1000" step="1000" required>
+                    <small id="coverageHint">Enter amount to see days coverage</small>
+                </div>
+                <button type="submit" class="btn-primary" id="saveBtn">Save Record</button>
+            </form>
+        </section>
+
+        <!-- HISTORY -->
+        <section class="history-section">
+            <h3>Recent Activity</h3>
+            <div id="activityLog" class="activity-log">
+                <!-- Activity items here -->
+            </div>
+        </section>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

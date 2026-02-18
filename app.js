@@ -503,7 +503,7 @@ function renderSalesCards() {
             <div style="margin: 8px 0; border-left: 2px solid var(--primary); padding-left: 12px; display: flex; flex-direction: column; gap: 4px;">
                 ${tx.items.map(item => `
                     <div style="font-size: 0.8125rem; display: flex; justify-content: space-between;">
-                        <span>${item.quantity}x ${item.item_name} ${item.is_external ? '<small style="color:var(--primary);">(Ext)</small>' : ''}</span>
+                        <span>${item.quantity}x ${item.item_name} <small style="color: var(--text-muted);">@ ₦${item.sale_price.toLocaleString()}</small> ${item.is_external ? '<small style="color:var(--primary);">(Ext)</small>' : ''}</span>
                         <span style="color: var(--text-muted);">₦${(item.quantity * item.sale_price).toLocaleString()}</span>
                     </div>
                 `).join('')}
