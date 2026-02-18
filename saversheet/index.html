@@ -3,57 +3,80 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SaverSheet - Daily Tracker</title>
+    <title>SAVERSHEET - Daily Tracker</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;600;800&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
+        <!-- HEADER -->
         <header class="header">
-            <div class="logo">
-                <span class="icon">💰</span>
-                <h1>SaverSheet</h1>
-            </div>
-            <p class="subtitle">₦1,000 Daily Saving Plan</p>
+            <h1>SAVERSHEET</h1>
+            <p class="subtitle">₦1,000 DAILY SAVING PLAN</p>
         </header>
 
-        <!-- DASHBOARD: MEMBER STATUS -->
-        <section class="dashboard" id="memberGrid">
-            <div class="member-card loading-state">
-                <p>Connecting to database...</p>
+        <!-- OVERVIEW SECTION -->
+        <section class="overview-grid">
+            <div class="overview-card">
+                <p class="label" id="currentDate">FEBRUARY 18, 2026</p>
+                <p class="status-indicator" id="syncStatus">SYNCING DATA...</p>
+            </div>
+            <div class="overview-card">
+                <p class="label">TOTAL SAVED</p>
+                <p class="value" id="totalSavedGroup">₦0</p>
+            </div>
+            <div class="overview-card">
+                <p class="label">PLAN HEALTH</p>
+                <p class="value" id="planHealth">0%</p>
             </div>
         </section>
 
-        <!-- RECORD FORM (Praise Only) -->
-        <section class="form-section">
-            <h2>Record Payment</h2>
-            <form id="saveForm" onsubmit="event.preventDefault(); submitPayment();" class="save-form">
+        <!-- RANKINGS SECTION -->
+        <section class="main-section">
+            <div class="section-header">
+                <h2>SAVER RANKINGS</h2>
+            </div>
+            <div id="memberGrid" class="rankings-list">
+                <!-- Ranked members injected here -->
+                <div class="loading-state">FETCHING RANKINGS...</div>
+            </div>
+        </section>
+
+        <!-- RECORD PAYMENT SECTION -->
+        <section class="main-section">
+            <div class="section-header">
+                <h2>RECORD PAYMENT</h2>
+            </div>
+            <form id="saveForm" onsubmit="event.preventDefault(); submitPayment();" class="minimal-form">
                 <div class="form-group">
-                    <label for="memberName">Member</label>
+                    <label>MEMBER</label>
                     <select id="memberName" required>
-                        <option value="" disabled selected>Select Saver</option>
-                        <option value="Divine">Divine</option>
-                        <option value="Wisdom">Wisdom</option>
-                        <option value="Praise">Praise</option>
+                        <option value="" disabled selected>SELECT SAVER</option>
+                        <option value="Divine">DIVINE</option>
+                        <option value="Wisdom">WISDOM</option>
+                        <option value="Praise">PRAISE</option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="amount">Amount (₦)</label>
-                    <input type="number" id="amount" placeholder="e.g. 3000" min="1000" step="1000" required>
-                    <small id="coverageHint">Enter amount to see days coverage</small>
+                    <label>AMOUNT (₦)</label>
+                    <input type="number" id="amount" placeholder="ENTER AMOUNT" min="1000" step="1000" required>
+                    <small id="coverageHint">DAYS COVERAGE WILL APPEAR HERE</small>
                 </div>
-                <button type="submit" class="btn-primary" id="saveBtn">Save Record</button>
+                <button type="submit" class="btn-black" id="saveBtn">RECORD PAYMENT</button>
             </form>
         </section>
 
-        <!-- HISTORY -->
-        <section class="history-section">
-            <h3>Recent Activity</h3>
-            <div id="activityLog" class="activity-log">
-                <!-- Activity items here -->
+        <!-- ACTIVITY SECTION -->
+        <section class="main-section">
+            <div class="section-header">
+                <h2>RECENT ACTIVITY</h2>
+                <button onclick="exportCSV()" class="btn-text">EXPORT</button>
+            </div>
+            <div id="activityLog" class="activity-stack">
+                <!-- Activity logs injected here -->
             </div>
         </section>
     </div>
