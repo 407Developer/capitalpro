@@ -7,6 +7,9 @@
   <title>Capital Pro</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
 </head>
 
@@ -18,38 +21,51 @@
       <p class="subtitle">💼 Business Tracker</p>
     </header>
 
-      <!-- analytics-section -->
-  <section class="analytics-section">
-    <canvas id="salesChart" width="400" height="200"></canvas>
-  </section>
-  <!-- End of analytics-section -->
-   
+    <!-- analytics-section -->
+    <section class="analytics-section">
+      <div style="height: 220px; position: relative;">
+        <canvas id="salesChart"></canvas>
+      </div>
+    </section>
+    <!-- End of analytics-section -->
+
     <!-- ADD SALE FORM -->
     <section class="form-section">
-      <h2>Add New Sale</h2>
-      <form onsubmit="event.preventDefault(); addSale();" class="form-grid">
+      <h2>New Transaction</h2>
+      <form id="saleForm" onsubmit="event.preventDefault(); addToCart();" class="form-grid">
         <div class="form-group">
           <label for="itemName">Item Name</label>
           <input id="itemName" type="text" placeholder="e.g., Cement" />
         </div>
-
         <div class="form-group">
           <label for="qty">Quantity</label>
           <input id="qty" type="number" placeholder="1" min="1" />
         </div>
-
         <div class="form-group">
           <label for="costPrice">Cost Price</label>
-          <input id="costPrice" type="number" placeholder="0" />
+          <input id="costPrice" type="number" placeholder="0" readonly />
         </div>
-
         <div class="form-group">
           <label for="sellPrice">Selling Price</label>
           <input id="sellPrice" type="number" placeholder="0" />
         </div>
-
-        <button type="submit" class="btn btn-primary">✓ Save Sale</button>
+        <button type="submit" class="btn btn-secondary">+ Add to Cart</button>
       </form>
+
+      <div id="cartSection" style="margin-top: 24px; display: none;">
+        <h3>Current Cart</h3>
+        <ul id="cartList" style="list-style: none; padding: 0;"></ul>
+        <div id="cartTotal"></div>
+        
+        <div class="form-group" style="margin-top: 16px;">
+          <label for="customerName">Customer Name (Optional)</label>
+          <input id="customerName" type="text" placeholder="e.g., John Doe" />
+        </div>
+
+        <button onclick="checkout()" class="btn btn-primary" style="width: 100%; margin-top: 16px;">
+          ✓ Complete Sale (Checkout)
+        </button>
+      </div>
     </section>
 
     <!-- SALES CARDS SECTION -->
@@ -60,28 +76,44 @@
       </div>
     </section>
 
-    <!-- SUMMARY SECTION (Fixed at bottom) -->
+    <!-- SUMMARY SECTION -->
     <section class="summary-section">
       <h2>Summary</h2>
       <div class="summary-grid">
-        <div class="summary-card shop-capital">
-          <p class="summary-label">Shop Capital</p>
-          <p class="summary-value" id="capital">₦0</p>
-        </div>
-        <div class="summary-card external-capital">
-          <p class="summary-label">External Capital</p>
-          <p class="summary-value" id="externalCapital">₦0</p>
+        <div class="summary-card total-revenue">
+          <p class="summary-label">Total Revenue</p>
+          <p class="summary-value" id="revenue">₦0</p>
         </div>
         <div class="summary-card total-profit">
           <p class="summary-label">Total Profit</p>
           <p class="summary-value" id="profit">₦0</p>
         </div>
+        <div class="summary-card profit-margin">
+          <p class="summary-label">Profit Margin</p>
+          <p class="summary-value" id="margin">0%</p>
+        </div>
+        <div class="summary-card shop-capital">
+          <p class="summary-label">Stock Value (Asset)</p>
+          <p class="summary-value" id="capital">₦0</p>
+        </div>
+        <div class="summary-card cogs">
+          <p class="summary-label">Internal CoGS</p>
+          <p class="summary-value" id="cogs">₦0</p>
+        </div>
+        <div class="summary-card external-capital">
+          <p class="summary-label">External Sourcing</p>
+          <p class="summary-value" id="ecogs">₦0</p>
+        </div>
       </div>
     </section>
 
-    <!-- EXPORT SECTION -->
+    <!-- EXPORT/IMPORT SECTION -->
     <section class="export-section">
-      <button onclick="exportCSV()" class="btn btn-secondary">📥 Export to CSV</button>
+      <div style="display: flex; gap: 10px;">
+        <button onclick="exportCSV()" class="btn btn-secondary" style="flex: 1;">📥 Export CSV</button>
+        <button onclick="document.getElementById('importFile').click()" class="btn btn-secondary" style="flex: 1;">📤 Import CSV</button>
+        <input type="file" id="importFile" style="display: none;" accept=".csv" onchange="importCSV(event)" />
+      </div>
     </section>
   </div>
 

@@ -1,57 +1,59 @@
+// --- CONFIGURATION ---
 const SUPABASE_URL = 'https://ihajeblunhqibmjkwmhf.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImloYWplYmx1bmhxaWJtamt3bWhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxMTg1NjEsImV4cCI6MjA4NTY5NDU2MX0.S8FrmoafAgfwlbYCbn41mpaySuNVLpfTw49cD1xH6nA';
 
-let db;
-if (window.supabase) {
-    db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-}
+// --- LOCAL STORAGE KEYS ---
+const STORAGE_KEYS = {
+    INVENTORY: 'cap_pro_inventory',
+    SALES: 'cap_pro_sales'
+};
 
+let cart = [];
 let inventory = [];
 let sales = [];
 let currentFilter = 'all';
 let myChart;
+let supabaseClient = null;
+let isExternalSource = false;
+
+// Initialize Supabase if available
+if (window.supabase) {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+}
 
 // --- INITIALIZE ---
 document.addEventListener('DOMContentLoaded', () => {
     setupFilterUI();
     setupInventoryListeners(); 
-    fetchInventory();
-    fetchSales();
+    loadData(); // Load from LocalStorage first
 });
 
-// --- 1. DATA FETCHING ---
-async function fetchInventory() {
-    const { data, error } = await db.from('inventory').select('*').order('item_name', { ascending: true });
-    if (!error) {
-        inventory = data || [];
-        renderInventoryDatalist(); 
-        updateDashboard();
-    }
+// --- 1. DATA PERSISTENCE (OFFLINE-FIRST) ---
+
+function loadData() {
+    const localInv = localStorage.getItem(STORAGE_KEYS.INVENTORY);
+    inventory = localInv ? JSON.parse(localInv) : [];
+
+    const localSales = localStorage.getItem(STORAGE_KEYS.SALES);
+    sales = localSales ? JSON.parse(localSales) : [];
+
+    refreshUI();
 }
 
-async function fetchSales() {
-    // CRITICAL FIX: Added 'created_at' to the select statement
-    const { data, error } = await db
-        .from('sales')
-        .select('item_name, sale_price, quantity, profit, cost_price, created_at') 
-        .order('created_at', { ascending: false });
-
-    if (error) {
-        console.error("Supabase Error:", error.message);
-    } else {
-        sales = data || [];
-        refreshUI(); // Unified UI update
-    }
+function saveData() {
+    localStorage.setItem(STORAGE_KEYS.INVENTORY, JSON.stringify(inventory));
+    localStorage.setItem(STORAGE_KEYS.SALES, JSON.stringify(sales));
 }
 
-// Helper to refresh everything when data changes
 function refreshUI() {
+    renderInventoryDatalist();
     renderSalesCards();
     updateDashboard();
     updateChart();
 }
 
-// --- 2. SMART INVENTORY UI ---
+// --- 2. INVENTORY LOGIC ---
+
 function renderInventoryDatalist() {
     const datalist = document.getElementById('inventory-list') || createDatalist();
     datalist.innerHTML = inventory.map(item => `<option value="${item.item_name}">`).join('');
@@ -69,119 +71,229 @@ function createDatalist() {
 
 function setupInventoryListeners() {
     const itemInput = document.getElementById('itemName');
+    const costInput = document.getElementById('costPrice');
     if (!itemInput) return;
 
     itemInput.addEventListener('input', function () {
         const val = itemInput.value.trim();
         const found = inventory.find(i => i.item_name.toLowerCase() === val.toLowerCase());
-        let addBtn = document.getElementById('add-new-item-btn');
+        let buttonGroup = document.getElementById('inventory-action-group');
 
         if (found) {
-            document.getElementById('costPrice').value = found.cost_price;
-            if (addBtn) addBtn.remove();
+            costInput.value = found.cost_price;
+            costInput.setAttribute('readonly', true);
+            isExternalSource = false;
+            if (buttonGroup) buttonGroup.remove();
         } else if (val.length > 0) {
-            if (!addBtn) {
-                addBtn = document.createElement('button');
-                addBtn.id = 'add-new-item-btn';
-                addBtn.type = 'button';
-                addBtn.className = 'btn btn-secondary';
-                addBtn.style.cssText = 'margin-top: 5px; display: block; width: 100%; font-size: 12px;';
-                addBtn.textContent = `+ Add "${val}" to Inventory`;
-                addBtn.onclick = () => showAddItemModal(itemInput.value);
-                itemInput.parentNode.appendChild(addBtn);
-            } else {
-                addBtn.textContent = `+ Add "${val}" to Inventory`;
+            isExternalSource = true;
+            costInput.removeAttribute('readonly');
+            
+            if (!buttonGroup) {
+                buttonGroup = document.createElement('div');
+                buttonGroup.id = 'inventory-action-group';
+                buttonGroup.style.cssText = 'margin-top: 8px; display: flex; gap: 8px;';
+                buttonGroup.innerHTML = `
+                    <button type="button" class="btn btn-secondary" style="flex:1; font-size: 11px; padding: 8px;" onclick="showAddItemModal('${val}')">+ Add to Stock</button>
+                    <button type="button" id="ext-source-btn" class="btn btn-primary" style="flex:1; font-size: 11px; padding: 8px; background: var(--secondary);" onclick="toggleExternalSource(true)">Source Externally</button>
+                `;
+                itemInput.parentNode.appendChild(buttonGroup);
             }
         } else {
-            if (addBtn) addBtn.remove();
+            if (buttonGroup) buttonGroup.remove();
+            costInput.setAttribute('readonly', true);
+            isExternalSource = false;
         }
     });
 }
 
-// --- 3. MODAL FOR NEW INVENTORY ---
+window.toggleExternalSource = function(isExt) {
+    isExternalSource = isExt;
+    const costInput = document.getElementById('costPrice');
+    const extBtn = document.getElementById('ext-source-btn');
+    
+    if (isExt) {
+        costInput.removeAttribute('readonly');
+        costInput.focus();
+        if (extBtn) extBtn.style.background = 'var(--primary)';
+    } else {
+        costInput.setAttribute('readonly', true);
+        if (extBtn) extBtn.style.background = 'var(--secondary)';
+    }
+};
+
 window.showAddItemModal = function (initialName) {
     const modal = document.createElement('div');
     modal.id = 'custom-modal';
-    modal.style = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); display:flex; align-items:center; justify-content:center; z-index:2000;";
+    modal.style = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15, 23, 42, 0.75); display:flex; align-items:center; justify-content:center; z-index:2000; backdrop-filter: blur(4px);";
     modal.innerHTML = `
-        <div style="background:white; padding:25px; border-radius:12px; width:90%; max-width:400px; color:#333;">
-            <h3 style="margin-top:0;">New Inventory Item</h3>
-            <label>Item Name</label>
-            <input type="text" id="m-name" value="${initialName}" style="width:100%; padding:8px; margin-bottom:15px; border:1px solid #ccc; border-radius:5px;">
-            <label>Cost Price (₦)</label>
-            <input type="number" id="m-cost" style="width:100%; padding:8px; margin-bottom:15px; border:1px solid #ccc; border-radius:5px;">
-            <label>Starting Stock</label>
-            <input type="number" id="m-qty" value="1" style="width:100%; padding:8px; margin-bottom:20px; border:1px solid #ccc; border-radius:5px;">
-            <div style="display:flex; gap:10px;">
-                <button onclick="saveNewInventoryItem()" style="flex:1; background:#28a745; color:white; border:none; padding:10px; border-radius:5px; cursor:pointer;">Save</button>
-                <button onclick="document.getElementById('custom-modal').remove()" style="flex:1; background:#666; color:white; border:none; padding:10px; border-radius:5px; cursor:pointer;">Cancel</button>
+        <div style="background:white; padding:32px; border-radius:16px; width:90%; max-width:400px; box-shadow: var(--shadow-lg);">
+            <h3 style="margin-top:0; margin-bottom: 20px; font-size: 1.25rem; font-weight: 700;">New Inventory Item</h3>
+            <div class="form-group" style="margin-bottom: 16px;">
+                <label>Item Name</label>
+                <input type="text" id="m-name" value="${initialName}" style="width:100%;">
+            </div>
+            <div class="form-group" style="margin-bottom: 16px;">
+                <label>Cost Price (₦)</label>
+                <input type="number" id="m-cost" style="width:100%;">
+            </div>
+            <div class="form-group" style="margin-bottom: 24px;">
+                <label>Starting Stock</label>
+                <input type="number" id="m-qty" value="1" style="width:100%;">
+            </div>
+            <div style="display:flex; gap:12px;">
+                <button onclick="saveNewInventoryItem()" class="btn btn-primary" style="flex:1;">Save Item</button>
+                <button onclick="document.getElementById('custom-modal').remove()" class="btn btn-secondary" style="flex:1;">Cancel</button>
             </div>
         </div>
     `;
     document.body.appendChild(modal);
 };
 
-window.saveNewInventoryItem = async function () {
+window.saveNewInventoryItem = function () {
     const name = document.getElementById('m-name').value;
     const cost = parseFloat(document.getElementById('m-cost').value);
     const qty = parseInt(document.getElementById('m-qty').value);
 
     if (!name || isNaN(cost)) return alert("Please enter name and cost.");
 
-    const { error } = await db.from('inventory').insert([{ item_name: name, cost_price: cost, stock_qty: qty }]);
+    const newItem = {
+        id: crypto.randomUUID(),
+        item_name: name,
+        cost_price: cost,
+        stock_qty: qty,
+        created_at: new Date().toISOString()
+    };
 
-    if (!error) {
-        document.getElementById('custom-modal').remove();
-        const addBtn = document.getElementById('add-new-item-btn');
-        if (addBtn) addBtn.remove();
-        await fetchInventory(); 
-        document.getElementById('itemName').value = name;
-        document.getElementById('costPrice').value = cost;
-    }
+    inventory.push(newItem);
+    saveData();
+    
+    document.getElementById('custom-modal').remove();
+    const actionGroup = document.getElementById('inventory-action-group');
+    if (actionGroup) actionGroup.remove();
+    
+    document.getElementById('itemName').value = name;
+    document.getElementById('costPrice').value = cost;
+    document.getElementById('costPrice').setAttribute('readonly', true);
+    isExternalSource = false;
+    refreshUI();
 };
 
-// --- 4. SALES LOGIC ---
-window.addSale = async function () {
+// --- 3. SALES LOGIC ---
+
+window.addToCart = function () {
     const name = document.getElementById('itemName').value;
     const qty = parseInt(document.getElementById('qty').value);
     const cost = parseFloat(document.getElementById('costPrice').value);
     const sell = parseFloat(document.getElementById('sellPrice').value);
 
-    if (!name || isNaN(qty) || isNaN(sell)) return alert("Please fill all fields.");
+    if (!name || isNaN(qty) || isNaN(sell) || isNaN(cost)) return alert("Please fill all fields.");
 
     const profit = (sell - cost) * qty;
 
-    const { error } = await db.from('sales').insert([{
+    cart.push({
         item_name: name,
         sale_price: sell,
         quantity: qty,
         profit: profit,
-        cost_price: cost
-    }]);
+        cost_price: cost,
+        is_external: isExternalSource
+    });
 
-    if (!error) {
-        const invItem = inventory.find(i => i.item_name.toLowerCase() === name.toLowerCase());
-        if (invItem) {
-            await db.from('inventory').update({ stock_qty: invItem.stock_qty - qty }).eq('id', invItem.id);
-        }
-        ['itemName', 'qty', 'sellPrice', 'costPrice'].forEach(id => {
-            const el = document.getElementById(id);
-            if(el) el.value = '';
-        });
-        fetchSales();
-        fetchInventory();
-    }
+    ['itemName', 'qty', 'sellPrice', 'costPrice'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    document.getElementById('costPrice').setAttribute('readonly', true);
+    const actionGroup = document.getElementById('inventory-action-group');
+    if (actionGroup) actionGroup.remove();
+    isExternalSource = false;
+
+    renderCart();
 };
 
-// --- 5. DASHBOARD & UI ---
+function renderCart() {
+    const cartSection = document.getElementById('cartSection');
+    const cartList = document.getElementById('cartList');
+    const cartTotal = document.getElementById('cartTotal');
+
+    if (cart.length === 0) {
+        cartSection.style.display = 'none';
+        return;
+    }
+
+    cartSection.style.display = 'block';
+    cartList.innerHTML = cart.map((item, index) => `
+        <li class="cart-item">
+            <div class="cart-item-info">
+                <span class="cart-item-name">${item.quantity}x ${item.item_name} ${item.is_external ? '<small style="color:var(--primary); font-weight:bold;">(Ext)</small>' : ''}</span>
+                <span class="cart-item-price">@ ₦${item.sale_price.toLocaleString()} each</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <strong style="font-weight: 700;">₦${(item.quantity * item.sale_price).toLocaleString()}</strong>
+                <button onclick="removeFromCart(${index})" class="cart-remove-btn" title="Remove item">✕</button>
+            </div>
+        </li>
+    `).join('');
+
+    const total = cart.reduce((sum, item) => sum + (item.quantity * item.sale_price), 0);
+    cartTotal.innerHTML = `
+        <div style="display: flex; justify-content: space-between; width: 100%; align-items: center; padding-top: 16px; border-top: 1px solid var(--border); margin-top: 8px;">
+            <span style="font-size: 0.875rem; color: var(--text-muted); font-weight: 500;">Total Amount</span>
+            <span style="font-size: 1.25rem; font-weight: 800; color: var(--text-main);">₦${total.toLocaleString()}</span>
+        </div>
+    `;
+}
+
+window.removeFromCart = function(index) {
+    cart.splice(index, 1);
+    renderCart();
+};
+
+window.checkout = function () {
+    if (cart.length === 0) return;
+
+    const customerNameInput = document.getElementById('customerName');
+    const customerName = customerNameInput ? customerNameInput.value.trim() : 'Walk-in Customer';
+    
+    const transactionId = crypto.randomUUID(); 
+    const timestamp = new Date().toISOString();
+    
+    const newSales = cart.map(item => ({
+        ...item,
+        transaction_id: transactionId,
+        customer_name: customerName || 'Walk-in Customer',
+        created_at: timestamp
+    }));
+
+    cart.forEach(cartItem => {
+        if (!cartItem.is_external) {
+            const invIdx = inventory.findIndex(i => i.item_name.toLowerCase() === cartItem.item_name.toLowerCase());
+            if (invIdx !== -1) {
+                inventory[invIdx].stock_qty -= cartItem.quantity;
+            }
+        }
+    });
+
+    sales = [...newSales, ...sales];
+    saveData();
+    alert("Sale completed successfully!");
+    
+    cart = [];
+    if (customerNameInput) customerNameInput.value = '';
+    renderCart();
+    refreshUI();
+};
+
+// --- 4. DASHBOARD & UI ---
+
 function setupFilterUI() {
     const summarySection = document.querySelector('.summary-section');
     if (!summarySection) return;
     const filterHTML = `
-        <div class="filter-menu" style="margin-bottom: 15px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
-            <button onclick="setFilter('day')" class="filter-btn">Today</button>
-            <button onclick="setFilter('month')" class="filter-btn">This Month</button>
-            <button onclick="setFilter('all')" class="filter-btn">All Time</button>
+        <div class="filter-menu" style="margin-bottom: 20px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+            <button onclick="setFilter('day')" class="btn btn-secondary ${currentFilter === 'day' ? 'active' : ''}" style="padding: 6px 12px; font-size: 0.75rem;">Today</button>
+            <button onclick="setFilter('month')" class="btn btn-secondary ${currentFilter === 'month' ? 'active' : ''}" style="padding: 6px 12px; font-size: 0.75rem;">This Month</button>
+            <button onclick="setFilter('all')" class="btn btn-secondary ${currentFilter === 'all' ? 'active' : ''}" style="padding: 6px 12px; font-size: 0.75rem;">All Time</button>
         </div>
     `;
     summarySection.insertAdjacentHTML('afterbegin', filterHTML);
@@ -189,6 +301,10 @@ function setupFilterUI() {
 
 window.setFilter = (type) => {
     currentFilter = type;
+    const summarySection = document.querySelector('.summary-section');
+    const filterMenu = summarySection.querySelector('.filter-menu');
+    if (filterMenu) filterMenu.remove();
+    setupFilterUI();
     refreshUI();
 };
 
@@ -204,31 +320,78 @@ function getFilteredSales() {
 
 function updateDashboard() {
     const filtered = getFilteredSales();
+    const totalRevenue = filtered.reduce((sum, s) => sum + (s.sale_price * s.quantity), 0);
     const totalProfit = filtered.reduce((sum, s) => sum + (s.profit || 0), 0);
     const shopCap = inventory.reduce((sum, i) => sum + (i.cost_price * i.stock_qty), 0);
     
-    const profitEl = document.getElementById('profit');
-    const capitalEl = document.getElementById('capital');
+    const internalCogs = filtered.filter(s => !s.is_external).reduce((sum, s) => sum + (s.cost_price * s.quantity), 0);
+    const externalCogs = filtered.filter(s => s.is_external).reduce((sum, s) => sum + (s.cost_price * s.quantity), 0);
     
-    if(profitEl) profitEl.textContent = `₦${totalProfit.toLocaleString()}`;
-    if(capitalEl) capitalEl.textContent = `₦${shopCap.toLocaleString()}`;
+    const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+
+    const elements = {
+        revenue: document.getElementById('revenue'),
+        profit: document.getElementById('profit'),
+        margin: document.getElementById('margin'),
+        capital: document.getElementById('capital'),
+        cogs: document.getElementById('cogs'),
+        ecogs: document.getElementById('ecogs')
+    };
+    
+    if(elements.revenue) elements.revenue.textContent = `₦${totalRevenue.toLocaleString()}`;
+    if(elements.profit) elements.profit.textContent = `₦${totalProfit.toLocaleString()}`;
+    if(elements.margin) elements.margin.textContent = `${profitMargin.toFixed(1)}%`;
+    if(elements.capital) elements.capital.textContent = `₦${shopCap.toLocaleString()}`;
+    if(elements.cogs) elements.cogs.textContent = `₦${internalCogs.toLocaleString()}`;
+    if(elements.ecogs) elements.ecogs.textContent = `₦${externalCogs.toLocaleString()}`;
 }
 
 function renderSalesCards() {
     const container = document.getElementById("salesContainer");
     if (!container) return;
+    
     const filtered = getFilteredSales();
-    container.innerHTML = filtered.map(sale => `
-        <div class="sale-card" style="border: 1px solid #eee; padding: 12px; margin-bottom: 10px; border-radius: 8px; background:white; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-            <div style="display:flex; justify-content:space-between;">
-                <small style="color:#888;">${new Date(sale.created_at).toLocaleDateString()}</small>
-                <b style="color:#28a745;">+₦${sale.profit.toLocaleString()}</b>
+    
+    const grouped = filtered.reduce((acc, sale) => {
+        if (!acc[sale.transaction_id]) {
+            acc[sale.transaction_id] = {
+                customer: sale.customer_name || 'Walk-in Customer',
+                date: sale.created_at,
+                items: [],
+                total_profit: 0,
+                total_amount: 0
+            };
+        }
+        acc[sale.transaction_id].items.push(sale);
+        acc[sale.transaction_id].total_profit += (sale.profit || 0);
+        acc[sale.transaction_id].total_amount += (sale.quantity * sale.sale_price);
+        return acc;
+    }, {});
+
+    const sortedTransactions = Object.values(grouped).sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    container.innerHTML = sortedTransactions.map(tx => `
+        <div class="sale-card">
+            <div class="sale-card-header">
+                <span style="font-weight: 700; color: var(--text-main); font-size: 0.9375rem;">👤 ${tx.customer}</span>
+                <span>${new Date(tx.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
             </div>
-            <h4 style="margin:5px 0;">${sale.item_name}</h4>
-            <p style="margin:0; font-size:13px; color:#555;">Sales Income: ₦${(sale.quantity * sale.sale_price).toLocaleString()}</p>
-            <p style="margin:0; font-size:13px; color:#555;">Qty: ${sale.quantity} | Sold at: ₦${sale.sale_price.toLocaleString()}</p>
+            
+            <div style="margin: 8px 0; border-left: 2px solid var(--primary); padding-left: 12px; display: flex; flex-direction: column; gap: 4px;">
+                ${tx.items.map(item => `
+                    <div style="font-size: 0.8125rem; display: flex; justify-content: space-between;">
+                        <span>${item.quantity}x ${item.item_name} ${item.is_external ? '<small style="color:var(--primary);">(Ext)</small>' : ''}</span>
+                        <span style="color: var(--text-muted);">₦${(item.quantity * item.sale_price).toLocaleString()}</span>
+                    </div>
+                `).join('')}
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border);">
+                <span class="sale-card-profit" style="font-size: 0.875rem;">+₦${tx.total_profit.toLocaleString()} profit</span>
+                <span style="font-weight: 800; font-size: 1rem;">₦${tx.total_amount.toLocaleString()}</span>
+            </div>
         </div>
-    `).join('') || '<div class="empty-state">No sales found for this period.</div>';
+    `).join('') || '<div class="empty-state">No sales yet.</div>';
 }
 
 function updateChart() {
@@ -255,16 +418,110 @@ function updateChart() {
             datasets: [{
                 label: 'Profit (₦)',
                 data: dailyProfit,
-                borderColor: '#28a745',
+                borderColor: '#10b981',
+                borderWidth: 3,
                 tension: 0.4,
+                pointRadius: 4,
+                pointBackgroundColor: '#fff',
+                pointBorderColor: '#10b981',
+                pointBorderWidth: 2,
                 fill: true,
-                backgroundColor: 'rgba(40, 167, 69, 0.1)'
+                backgroundColor: 'rgba(16, 185, 129, 0.05)'
             }]
         },
         options: { 
             responsive: true,
-            plugins: { legend: { display: false } },
-            scales: { y: { beginAtZero: true } }
+            maintainAspectRatio: false,
+            plugins: { 
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#1e293b',
+                    padding: 12,
+                    cornerRadius: 8,
+                    titleFont: { size: 12, weight: 'bold' },
+                    bodyFont: { size: 14 }
+                }
+            },
+            scales: { 
+                y: { 
+                    beginAtZero: true,
+                    grid: { color: '#f1f5f9' },
+                    ticks: { font: { size: 11 } }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { font: { size: 11 } }
+                }
+            }
         }
     });
 }
+
+// --- 5. DATA MANAGEMENT (EXPORT/IMPORT) ---
+
+window.exportCSV = function () {
+    if (sales.length === 0) return alert("No sales to export.");
+    
+    const headers = ["Date", "Customer", "Item", "Quantity", "Sale Price", "Cost Price", "Profit", "Sourcing"];
+    const rows = sales.map(s => [
+        new Date(s.created_at).toISOString(),
+        s.customer_name || 'Walk-in Customer',
+        s.item_name,
+        s.quantity,
+        s.sale_price,
+        s.cost_price,
+        s.profit,
+        s.is_external ? 'External' : 'Stock'
+    ]);
+
+    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute("download", `capital_pro_data_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};
+
+window.importCSV = function(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const text = e.target.result;
+        const rows = text.split('\n').slice(1); // Skip header
+        
+        const importedSales = rows.filter(row => row.trim()).map(row => {
+            const cols = row.split(',');
+            // Map CSV back to Object
+            return {
+                created_at: cols[0],
+                customer_name: cols[1],
+                item_name: cols[2],
+                quantity: parseInt(cols[3]),
+                sale_price: parseFloat(cols[4]),
+                cost_price: parseFloat(cols[5]),
+                profit: parseFloat(cols[6]),
+                is_external: cols[7] === 'External',
+                transaction_id: crypto.randomUUID() // Assigning new group ID for simple restore
+            };
+        });
+
+        if (confirm(`Import ${importedSales.length} sales? This will merge with existing data.`)) {
+            sales = [...importedSales, ...sales];
+            saveData();
+            refreshUI();
+            alert("Data imported successfully!");
+        }
+    };
+    reader.readAsText(file);
+};
+
+window.resetData = function() {
+    if(confirm("Are you sure you want to clear ALL local data?")) {
+        localStorage.clear();
+        location.reload();
+    }
+};
