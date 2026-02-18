@@ -219,6 +219,28 @@ h2 {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 8px;
+}
+
+/* Custom Scrollbar for Sales History */
+.sales-carousel::-webkit-scrollbar {
+    width: 6px;
+}
+
+.sales-carousel::-webkit-scrollbar-track {
+    background: var(--background);
+    border-radius: 10px;
+}
+
+.sales-carousel::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 10px;
+}
+
+.sales-carousel::-webkit-scrollbar-thumb:hover {
+    background: var(--secondary);
 }
 
 .sale-card {
