@@ -109,10 +109,15 @@
 
     <!-- EXPORT/IMPORT SECTION -->
     <section class="export-section">
-      <div style="display: flex; gap: 10px;">
-        <button onclick="exportCSV()" class="btn btn-secondary" style="flex: 1;">📥 Export CSV</button>
-        <button onclick="document.getElementById('importFile').click()" class="btn btn-secondary" style="flex: 1;">📤 Import CSV</button>
-        <input type="file" id="importFile" style="display: none;" accept=".csv" onchange="importCSV(event)" />
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <button onclick="syncWithSupabase()" class="btn btn-primary" id="syncBtn" style="width: 100%; background: #059669;">
+          ☁️ Sync with Cloud (Supabase)
+        </button>
+        <div style="display: flex; gap: 10px;">
+          <button onclick="exportCSV()" class="btn btn-secondary" style="flex: 1;">📥 Export CSV</button>
+          <button onclick="document.getElementById('importFile').click()" class="btn btn-secondary" style="flex: 1;">📤 Import CSV</button>
+          <input type="file" id="importFile" style="display: none;" accept=".csv" onchange="importCSV(event)" />
+        </div>
       </div>
     </section>
   </div>

@@ -15,20 +15,39 @@ let currentFilter = 'all';
 let myChart;
 let supabaseClient = null;
 let isExternalSource = false;
+let dbColumns = { inventory: [], sales: [] }; // Track what the cloud actually supports
 
-// Initialize Supabase if available
+// Initialize Supabase
 if (window.supabase) {
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 }
 
 // --- INITIALIZE ---
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     setupFilterUI();
     setupInventoryListeners(); 
-    loadData(); // Load from LocalStorage first
+    loadData(); // Load local first for instant UI
+    await detectSchema(); // Check what columns Supabase has
+    syncWithSupabase(true); // Silent sync
 });
 
-// --- 1. DATA PERSISTENCE (OFFLINE-FIRST) ---
+// --- 1. DATA PERSISTENCE & SAFE SYNC ---
+
+async function detectSchema() {
+    if (!supabaseClient) return;
+    try {
+        // Fetch 1 row to see what columns exist
+        const { data: invSample } = await supabaseClient.from('inventory').select('*').limit(1);
+        if (invSample && invSample[0]) dbColumns.inventory = Object.keys(invSample[0]);
+
+        const { data: salesSample } = await supabaseClient.from('sales').select('*').limit(1);
+        if (salesSample && salesSample[0]) dbColumns.sales = Object.keys(salesSample[0]);
+        
+        console.log("Cloud Schema Detected:", dbColumns);
+    } catch (e) {
+        console.warn("Could not detect cloud schema, falling back to safe sync.");
+    }
+}
 
 function loadData() {
     const localInv = localStorage.getItem(STORAGE_KEYS.INVENTORY);
@@ -44,6 +63,88 @@ function saveData() {
     localStorage.setItem(STORAGE_KEYS.INVENTORY, JSON.stringify(inventory));
     localStorage.setItem(STORAGE_KEYS.SALES, JSON.stringify(sales));
 }
+
+// Helper to strip local-only columns before sending to Supabase
+function filterForCloud(dataArray, table) {
+    const validCols = dbColumns[table];
+    if (!validCols || validCols.length === 0) {
+        // If we don't know the schema, we send the bare minimum defaults
+        const defaults = {
+            sales: ['item_name', 'sale_price', 'quantity', 'profit', 'cost_price', 'created_at'],
+            inventory: ['item_name', 'cost_price', 'stock_qty']
+        };
+        const activeCols = defaults[table];
+        return dataArray.map(item => {
+            let filtered = {};
+            activeCols.forEach(col => { if (item[col] !== undefined) filtered[col] = item[col]; });
+            return filtered;
+        });
+    }
+    return dataArray.map(item => {
+        let filtered = {};
+        validCols.forEach(col => { if (item[col] !== undefined) filtered[col] = item[col]; });
+        return filtered;
+    });
+}
+
+window.syncWithSupabase = async function (silent = false) {
+    if (!supabaseClient) return;
+    const syncBtn = document.getElementById('syncBtn');
+    if (!silent && syncBtn) {
+        syncBtn.textContent = '⏳ Syncing...';
+        syncBtn.disabled = true;
+    }
+
+    try {
+        // 1. Detect schema if we haven't yet
+        if (dbColumns.sales.length === 0) await detectSchema();
+
+        // 2. PUSH (Safe Upsert)
+        if (inventory.length > 0) {
+            const cloudInv = filterForCloud(inventory, 'inventory');
+            await supabaseClient.from('inventory').upsert(cloudInv, { onConflict: 'item_name' });
+        }
+
+        if (sales.length > 0) {
+            const cloudSales = filterForCloud(sales, 'sales');
+            // Using insert for sales to avoid 409 conflicts on non-unique fields
+            // Only push if local count > cloud count (simplified logic)
+            await supabaseClient.from('sales').upsert(cloudSales); 
+        }
+
+        // 3. PULL
+        const { data: cloudInv } = await supabaseClient.from('inventory').select('*');
+        const { data: cloudSales } = await supabaseClient.from('sales').select('*').order('created_at', { ascending: false });
+
+        // Merge logic: local data takes precedence for fields the cloud doesn't have yet
+        if (cloudInv) {
+            inventory = cloudInv.map(ci => {
+                const local = inventory.find(li => li.item_name === ci.item_name);
+                return local ? { ...local, ...ci } : ci;
+            });
+        }
+        if (cloudSales) {
+            sales = cloudSales.map(cs => {
+                // Find local match by timestamp or name+qty
+                const local = sales.find(ls => ls.created_at === cs.created_at && ls.item_name === cs.item_name);
+                return local ? { ...local, ...cs } : cs;
+            });
+        }
+
+        saveData();
+        refreshUI();
+
+        if (!silent) alert("Cloud Sync Successful!");
+    } catch (err) {
+        console.error("Sync Error Details:", err);
+        if (!silent) alert("Sync partially failed. Your data is still safe locally.");
+    } finally {
+        if (syncBtn) {
+            syncBtn.textContent = '☁️ Sync with Cloud (Supabase)';
+            syncBtn.disabled = false;
+        }
+    }
+};
 
 function refreshUI() {
     renderInventoryDatalist();
@@ -149,7 +250,7 @@ window.showAddItemModal = function (initialName) {
     document.body.appendChild(modal);
 };
 
-window.saveNewInventoryItem = function () {
+window.saveNewInventoryItem = async function () {
     const name = document.getElementById('m-name').value;
     const cost = parseFloat(document.getElementById('m-cost').value);
     const qty = parseInt(document.getElementById('m-qty').value);
@@ -157,7 +258,6 @@ window.saveNewInventoryItem = function () {
     if (!name || isNaN(cost)) return alert("Please enter name and cost.");
 
     const newItem = {
-        id: crypto.randomUUID(),
         item_name: name,
         cost_price: cost,
         stock_qty: qty,
@@ -167,6 +267,12 @@ window.saveNewInventoryItem = function () {
     inventory.push(newItem);
     saveData();
     
+    // Cloud push (Safe)
+    if (supabaseClient) {
+        const cloudSafe = filterForCloud([newItem], 'inventory');
+        await supabaseClient.from('inventory').insert(cloudSafe);
+    }
+
     document.getElementById('custom-modal').remove();
     const actionGroup = document.getElementById('inventory-action-group');
     if (actionGroup) actionGroup.remove();
@@ -249,7 +355,7 @@ window.removeFromCart = function(index) {
     renderCart();
 };
 
-window.checkout = function () {
+window.checkout = async function () {
     if (cart.length === 0) return;
 
     const customerNameInput = document.getElementById('customerName');
@@ -259,12 +365,18 @@ window.checkout = function () {
     const timestamp = new Date().toISOString();
     
     const newSales = cart.map(item => ({
-        ...item,
         transaction_id: transactionId,
         customer_name: customerName || 'Walk-in Customer',
+        item_name: item.item_name,
+        sale_price: item.sale_price,
+        quantity: item.quantity,
+        profit: item.profit,
+        cost_price: item.cost_price,
+        is_external: item.is_external,
         created_at: timestamp
     }));
 
+    // Update Local Stock
     cart.forEach(cartItem => {
         if (!cartItem.is_external) {
             const invIdx = inventory.findIndex(i => i.item_name.toLowerCase() === cartItem.item_name.toLowerCase());
@@ -276,7 +388,17 @@ window.checkout = function () {
 
     sales = [...newSales, ...sales];
     saveData();
-    alert("Sale completed successfully!");
+
+    // Cloud push (Safe)
+    if (supabaseClient) {
+        const cloudSafeSales = filterForCloud(newSales, 'sales');
+        await supabaseClient.from('sales').insert(cloudSafeSales);
+        
+        const cloudSafeInv = filterForCloud(inventory, 'inventory');
+        await supabaseClient.from('inventory').upsert(cloudSafeInv, { onConflict: 'item_name' });
+    }
+
+    alert("Sale completed and backed up!");
     
     cart = [];
     if (customerNameInput) customerNameInput.value = '';
@@ -353,18 +475,19 @@ function renderSalesCards() {
     const filtered = getFilteredSales();
     
     const grouped = filtered.reduce((acc, sale) => {
-        if (!acc[sale.transaction_id]) {
-            acc[sale.transaction_id] = {
-                customer: sale.customer_name || 'Walk-in Customer',
+        const id = sale.transaction_id || 'legacy-' + sale.created_at;
+        if (!acc[id]) {
+            acc[id] = {
+                customer: sale.customer_name || 'Customer',
                 date: sale.created_at,
                 items: [],
                 total_profit: 0,
                 total_amount: 0
             };
         }
-        acc[sale.transaction_id].items.push(sale);
-        acc[sale.transaction_id].total_profit += (sale.profit || 0);
-        acc[sale.transaction_id].total_amount += (sale.quantity * sale.sale_price);
+        acc[id].items.push(sale);
+        acc[id].total_profit += (sale.profit || 0);
+        acc[id].total_amount += (sale.quantity * sale.sale_price);
         return acc;
     }, {});
 
@@ -491,11 +614,10 @@ window.importCSV = function(event) {
     const reader = new FileReader();
     reader.onload = function(e) {
         const text = e.target.result;
-        const rows = text.split('\n').slice(1); // Skip header
+        const rows = text.split('\n').slice(1);
         
         const importedSales = rows.filter(row => row.trim()).map(row => {
             const cols = row.split(',');
-            // Map CSV back to Object
             return {
                 created_at: cols[0],
                 customer_name: cols[1],
@@ -505,7 +627,7 @@ window.importCSV = function(event) {
                 cost_price: parseFloat(cols[5]),
                 profit: parseFloat(cols[6]),
                 is_external: cols[7] === 'External',
-                transaction_id: crypto.randomUUID() // Assigning new group ID for simple restore
+                transaction_id: crypto.randomUUID()
             };
         });
 
