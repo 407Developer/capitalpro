@@ -612,7 +612,7 @@ window.printReceipt = function(txId) {
     setTimeout(() => {
         printWindow.print();
         printWindow.close();
-    }, 2500);
+    }, 4000); // Allow time for rendering
 };
 
 function updateChart() {
@@ -639,14 +639,14 @@ function updateChart() {
             datasets: [{
                 label: 'Profit (₦)',
                 data: dailyProfit,
-                borderColor: '#10b981',
+                borderColor: '#38bdf8',
                 borderWidth: 3,
                 tension: 0.4,
                 pointRadius: 4,
                 pointBackgroundColor: '#fff',
-                pointBorderColor: '#10b981',
-                pointBorderWidth: 2,
-                fill: true,
+                // pointBorderColor: '#008ac5ff',
+                pointBorderWidth: 0,
+                fill: false,
                 backgroundColor: 'rgba(16, 185, 129, 0.05)'
             }]
         },
