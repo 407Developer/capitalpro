@@ -631,34 +631,92 @@ function updateChart() {
             .reduce((sum, s) => sum + (s.profit || 0), 0);
     });
 
+    const dailyRevenue = last7Days.map(date => {
+        return sales
+            .filter(s => new Date(s.created_at).toDateString() === date)
+            .reduce((sum, s) => sum + (s.sale_price * s.quantity), 0);
+    });
+
     if (myChart) myChart.destroy();
     myChart = new Chart(canvas.getContext('2d'), {
         type: 'line',
         data: {
             labels: last7Days.map(d => d.split(' ').slice(1, 3).join(' ')),
-            datasets: [{
-                label: 'Profit (₦)',
-                data: dailyProfit,
-                borderColor: '#38bdf8',
-                borderWidth: 3,
-                tension: 0.4,
-                pointRadius: 4,
-                pointBackgroundColor: '#fff',
-                // pointBorderColor: '#008ac5ff',
-                pointBorderWidth: 0,
-                fill: false,
-                backgroundColor: 'rgba(16, 185, 129, 0.05)'
-            }]
+            datasets: [
+                {
+                    label: 'Revenue (₦)',
+                    data: dailyRevenue,
+                    borderColor: '#3b82f6', // Blue
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    borderWidth: 3,
+                    tension: 0.4,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#fff',
+                    pointBorderColor: '#3b82f6',
+                    pointBorderWidth: 2,
+                    fill: true
+                },
+                {
+                    label: 'Profit (₦)',
+                    data: dailyProfit,
+                    borderColor: '#10b981', // Green
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    borderWidth: 3,
+                    tension: 0.4,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#fff',
+                    pointBorderColor: '#10b981',
+                    pointBorderWidth: 2,
+                    fill: true
+                }
+            ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
             plugins: {
-                legend: { display: false }
+                legend: { 
+                    display: true,
+                    labels: { color: '#94a3b8', font: { size: 11, family: 'Inter' } } 
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                    titleColor: '#f8fafc',
+                    bodyColor: '#f8fafc',
+                    padding: 12,
+                    cornerRadius: 8,
+                    displayColors: true,
+                    callbacks: {
+                        footer: function(tooltipItems) {
+                            const rev = tooltipItems[0].raw || 0;
+                            const prof = tooltipItems[1] ? tooltipItems[1].raw : 0;
+                            if (rev > 0) {
+                                const margin = ((prof / rev) * 100).toFixed(1);
+                                return 'Margin: ' + margin + '%';
+                            }
+                            return '';
+                        }
+                    }
+                }
             },
             scales: {
-                y: { beginAtZero: true },
-                x: { grid: { display: false } }
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                    ticks: { 
+                        color: '#94a3b8',
+                        font: { size: 10 },
+                        callback: function(value) { return '₦' + value.toLocaleString(); }
+                    }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { color: '#94a3b8', font: { size: 10 } }
+                }
             }
         }
     });
