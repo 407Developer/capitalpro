@@ -1,14 +1,14 @@
 // --- CONFIGURATION ---
 const SUPABASE_URL = 'https://ihajeblunhqibmjkwmhf.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImloYWplYmx1bmhxaWJtamt3bWhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxMTg1NjEsImV4cCI6MjA4NTY5NDU2MX0.S8FrmoafAgfwlbYCbn41mpaySuNVLpfTw49cD1xH6nA';
+const SUPABASE_KEY = 'sb_publishable_j8OKa-MYTcryLG4uGiOR9A_KGemAAcr';
 
 // BUSINESS DETAILS
 const BIZ_DETAILS = {
-    name: "CAPITAL PRO VENTURES",
-    tagline: "Quality Building Materials & More",
-    address: "No 42, Building Materials Market, Lagos",
-    phone: "0812 345 6789, 0701 234 5678",
-    email: "capitalpro@gmail.com"
+    name: "FLOOR BOSS NG.",
+    tagline: "Your Ultimate Flooring Partner",
+    address: "Shop No 3, Abari Building Materials Market, Opposite Shippers Council, zone 5, Wuse, Abuja.",
+    phone: "0916 520 8580 , 0803 349 7520",
+    email: "floorbossng@gmail.com"
 };
 
 // --- LOCAL STORAGE KEYS ---
@@ -35,9 +35,9 @@ if (window.supabase) {
 document.addEventListener('DOMContentLoaded', async () => {
     setupFilterUI();
     setupInventoryListeners();
-    loadData();
+    loadData(); // Load local first
     await detectSchema();
-    syncWithSupabase(true);
+    syncWithSupabase(true); // Silent sync on load
 });
 
 // --- 1. DATA PERSISTENCE & SAFE SYNC ---
@@ -73,6 +73,7 @@ function saveData() {
 function filterForCloud(dataArray, table) {
     const validCols = dbColumns[table];
     if (!validCols || validCols.length === 0) {
+        // Essential columns for recovery
         const defaults = {
             sales: ['transaction_id', 'customer_name', 'item_name', 'sale_price', 'quantity', 'profit', 'cost_price', 'created_at', 'is_external'],
             inventory: ['item_name', 'cost_price', 'stock_qty', 'created_at']
@@ -102,6 +103,7 @@ window.syncWithSupabase = async function (silent = false) {
     try {
         if (dbColumns.sales.length === 0) await detectSchema();
 
+        // 1. PUSH local changes
         if (inventory.length > 0) {
             const cloudInv = filterForCloud(inventory, 'inventory');
             await supabaseClient.from('inventory').upsert(cloudInv, { onConflict: 'item_name' });
@@ -109,9 +111,11 @@ window.syncWithSupabase = async function (silent = false) {
 
         if (sales.length > 0) {
             const cloudSales = filterForCloud(sales, 'sales');
+            // Upsert sales to prevent duplicates on cloud
             await supabaseClient.from('sales').upsert(cloudSales);
         }
 
+        // 2. PULL latest data
         const { data: cloudInv } = await supabaseClient.from('inventory').select('*');
         const { data: cloudSales } = await supabaseClient.from('sales').select('*').order('created_at', { ascending: false });
 
@@ -121,7 +125,9 @@ window.syncWithSupabase = async function (silent = false) {
                 return local ? { ...local, ...ci } : ci;
             });
         }
+        
         if (cloudSales) {
+            // Deduplicate based on transaction_id + item_name
             const mergedSales = [...sales];
             cloudSales.forEach(cs => {
                 const exists = mergedSales.some(ls => 
@@ -282,7 +288,7 @@ window.saveNewInventoryItem = async function () {
     refreshUI();
 };
 
-// --- 3. SALES LOGIC ---
+// --- 3. SALES LOGIC (CART SYSTEM) ---
 
 window.addToCart = function () {
     const name = document.getElementById('itemName').value;
@@ -374,6 +380,7 @@ window.checkout = async function () {
         created_at: timestamp
     }));
 
+    // Update Local Stock
     cart.forEach(cartItem => {
         if (!cartItem.is_external) {
             const invIdx = inventory.findIndex(i => i.item_name.toLowerCase() === cartItem.item_name.toLowerCase());
@@ -386,6 +393,7 @@ window.checkout = async function () {
     sales = [...newSales, ...sales];
     saveData();
 
+    // Cloud push (Safe)
     if (supabaseClient) {
         const cloudSafeSales = filterForCloud(newSales, 'sales');
         await supabaseClient.from('sales').insert(cloudSafeSales);
@@ -439,8 +447,8 @@ function getFilteredSales() {
         else if (currentFilter === 'month') timeMatch = saleDate.getMonth() === now.getMonth() && saleDate.getFullYear() === now.getFullYear();
 
         // 2. Search Text
-        const textMatch = sale.customer_name.toLowerCase().includes(searchVal) || 
-                          sale.item_name.toLowerCase().includes(searchVal);
+        const textMatch = (sale.customer_name || "").toLowerCase().includes(searchVal) || 
+                          (sale.item_name || "").toLowerCase().includes(searchVal);
 
         // 3. Specific Date
         const specificDateMatch = dateVal ? saleDate.toISOString().split('T')[0] === dateVal : true;
@@ -604,7 +612,7 @@ window.printReceipt = function(txId) {
     setTimeout(() => {
         printWindow.print();
         printWindow.close();
-    }, 250);
+    }, 2500);
 };
 
 function updateChart() {
@@ -656,45 +664,69 @@ function updateChart() {
     });
 }
 
-// --- 5. DATA MANAGEMENT ---
+// --- 5. DATA MANAGEMENT (EXPORT/IMPORT) ---
 
 window.exportCSV = function () {
     if (sales.length === 0) return alert("No sales to export.");
-    const headers = ["Date", "Customer", "Item", "Quantity", "Sale Price", "Cost Price", "Profit"];
-    const rows = sales.map(s => [new Date(s.created_at).toISOString(), s.customer_name, s.item_name, s.quantity, s.sale_price, s.cost_price, s.profit]);
+
+    const headers = ["Date", "Customer", "Item", "Quantity", "Sale Price", "Cost Price", "Profit", "Sourcing"];
+    const rows = sales.map(s => [
+        new Date(s.created_at).toISOString(),
+        s.customer_name || 'Walk-in Customer',
+        s.item_name,
+        s.quantity,
+        s.sale_price,
+        s.cost_price,
+        s.profit,
+        s.is_external ? 'External' : 'Stock'
+    ]);
+
     const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `capital_pro_${new Date().toISOString().split('T')[0]}.csv`;
+    link.setAttribute("download", `capital_pro_data_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
 };
 
 window.importCSV = function (event) {
     const file = event.target.files[0];
     if (!file) return;
+
     const reader = new FileReader();
     reader.onload = function (e) {
         const text = e.target.result;
         const rows = text.split('\n').slice(1);
+
         const importedSales = rows.filter(row => row.trim()).map(row => {
             const cols = row.split(',');
             return {
-                created_at: cols[0], customer_name: cols[1], item_name: cols[2],
-                quantity: parseInt(cols[3]), sale_price: parseFloat(cols[4]),
-                cost_price: parseFloat(cols[5]), profit: parseFloat(cols[6]),
+                created_at: cols[0],
+                customer_name: cols[1],
+                item_name: cols[2],
+                quantity: parseInt(cols[3]),
+                sale_price: parseFloat(cols[4]),
+                cost_price: parseFloat(cols[5]),
+                profit: parseFloat(cols[6]),
+                is_external: cols[7] === 'External',
                 transaction_id: crypto.randomUUID()
             };
         });
-        sales = [...importedSales, ...sales];
-        saveData();
-        refreshUI();
+
+        if (confirm(`Import ${importedSales.length} sales? This will merge with existing data.`)) {
+            sales = [...importedSales, ...sales];
+            saveData();
+            refreshUI();
+            alert("Data imported successfully!");
+        }
     };
     reader.readAsText(file);
 };
 
 window.resetData = function () {
-    if (confirm("Reset ALL data?")) {
+    if (confirm("Are you sure you want to clear ALL local data?")) {
         localStorage.clear();
         location.reload();
     }
