@@ -70,7 +70,20 @@
 
     <!-- SALES CARDS SECTION -->
     <section class="sales-section">
-      <h2>Sales History</h2>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2 style="margin-bottom: 0;">Sales History</h2>
+      </div>
+      
+      <!-- Search & Date Filter -->
+      <div class="search-filter-group" style="margin-bottom: 16px; display: flex; gap: 8px;">
+        <div style="flex: 2; position: relative;">
+          <input type="text" id="salesSearch" placeholder="🔍 Search customer or item..." oninput="refreshUI()" style="width: 100%; font-size: 0.8125rem; padding: 10px 12px; height: 38px;">
+        </div>
+        <div style="flex: 1;">
+          <input type="date" id="dateSearch" onchange="refreshUI()" style="width: 100%; font-size: 0.8125rem; padding: 10px 12px; height: 38px;">
+        </div>
+      </div>
+
       <div id="salesContainer" class="sales-carousel">
         <div class="empty-state">No sales yet. Add your first sale!</div>
       </div>
@@ -118,9 +131,15 @@
           <button onclick="document.getElementById('importFile').click()" class="btn btn-secondary" style="flex: 1;">📤 Import CSV</button>
           <input type="file" id="importFile" style="display: none;" accept=".csv" onchange="importCSV(event)" />
         </div>
+        <button onclick="resetData()" class="btn btn-danger" style="width: 100%;">
+          ⚠️ Reset All Local Data
+        </button>
       </div>
     </section>
   </div>
+
+  <!-- Receipt Template (Hidden) -->
+  <div id="receipt-container" style="display: none;"></div>
 
   <script src="app.js"></script>
 </body>

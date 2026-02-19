@@ -179,6 +179,20 @@ h2 {
     border-color: var(--text-muted);
 }
 
+.btn-danger {
+    background: rgba(251, 113, 133, 0.1);
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    margin-top: 10px;
+}
+
+.btn-danger:hover {
+    background: var(--danger);
+    color: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px -10px var(--danger);
+}
+
 /* CART SECTION */
 #cartSection {
     background: rgba(0, 0, 0, 0.2);
@@ -291,6 +305,13 @@ h2 {
     font-weight: 700;
     color: #fff;
     margin-bottom: 4px;
+}
+
+.btn-receipt:hover {
+    color: #fff !important;
+    background: var(--primary) !important;
+    border-radius: 4px;
+    padding: 2px 8px !important;
 }
 
 /* SUMMARY GRID */
