@@ -540,79 +540,129 @@ function renderSalesCards() {
 window.printReceipt = function(txId) {
     const saleGroup = sales.filter(s => s.transaction_id === txId || ('legacy-' + s.created_at) === txId);
     if (!saleGroup.length) return;
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+        alert('PDF engine not loaded. Please refresh and try again.');
+        return;
+    }
 
     const tx = {
-        customer: saleGroup[0].customer_name,
+        customer: saleGroup[0].customer_name || 'Walk-in Customer',
         date: saleGroup[0].created_at,
         items: saleGroup,
         total: saleGroup.reduce((sum, i) => sum + (i.quantity * i.sale_price), 0)
     };
 
-    const receiptHtml = `
-        <div style="padding: 40px; font-family: 'Inter', sans-serif; color: #000; background: #fff; width: 100%; max-width: 500px; margin: auto; border: 1px solid #eee;">
-            <div style="text-align: center; margin-bottom: 30px;">
-                <h1 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -1px;">${BIZ_DETAILS.name}</h1>
-                <p style="margin: 5px 0; font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 1px;">${BIZ_DETAILS.tagline}</p>
-                <p style="margin: 15px 0 5px; font-size: 11px; line-height: 1.4;">${BIZ_DETAILS.address}</p>
-                <p style="margin: 0; font-size: 11px;">📞 ${BIZ_DETAILS.phone}</p>
-            </div>
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a5' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 12;
+    const colTotalX = pageWidth - margin;
+    const colPriceX = colTotalX - 30;
+    const colQtyX = colPriceX - 20;
+    const itemColWidth = colQtyX - margin - 4;
+    let y = 16;
 
-            <div style="display: flex; justify-content: space-between; margin-bottom: 30px; font-size: 12px; border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 15px 0;">
-                <div>
-                    <p style="margin: 0 0 5px; color: #666;">CUSTOMER</p>
-                    <p style="margin: 0; font-weight: 700;">${tx.customer.toUpperCase()}</p>
-                </div>
-                <div style="text-align: right;">
-                    <p style="margin: 0 0 5px; color: #666;">DATE</p>
-                    <p style="margin: 0; font-weight: 700;">${new Date(tx.date).toLocaleDateString()}</p>
-                </div>
-            </div>
+    const formatMoney = (n) => `NGN ${Number(n || 0).toLocaleString()}`;
+    const drawRule = (offset = 0) => {
+        const lineY = y + offset;
+        doc.setDrawColor(229, 231, 235);
+        doc.line(margin, lineY, pageWidth - margin, lineY);
+    };
+    const ensureSpace = (needed) => {
+        if (y + needed > pageHeight - 18) {
+            doc.addPage();
+            y = 16;
+        }
+    };
 
-            <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 13px;">
-                <thead>
-                    <tr style="border-bottom: 1px solid #eee;">
-                        <th style="text-align: left; padding: 10px 0; color: #666;">ITEM</th>
-                        <th style="text-align: center; padding: 10px 0; color: #666;">QTY</th>
-                        <th style="text-align: right; padding: 10px 0; color: #666;">PRICE</th>
-                        <th style="text-align: right; padding: 10px 0; color: #666;">TOTAL</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${tx.items.map(item => `
-                        <tr style="border-bottom: 1px solid #f9f9f9;">
-                            <td style="padding: 12px 0; font-weight: 500;">${item.item_name}</td>
-                            <td style="padding: 12px 0; text-align: center;">${item.quantity}</td>
-                            <td style="padding: 12px 0; text-align: right;">₦${item.sale_price.toLocaleString()}</td>
-                            <td style="padding: 12px 0; text-align: right; font-weight: 700;">₦${(item.quantity * item.sale_price).toLocaleString()}</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
+    doc.setFillColor(15, 23, 42);
+    doc.roundedRect(margin, y, pageWidth - (margin * 2), 27, 2, 2, 'F');
+    doc.setTextColor(248, 250, 252);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text(BIZ_DETAILS.name, margin + 4, y + 8);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(BIZ_DETAILS.tagline, margin + 4, y + 14);
+    doc.text(BIZ_DETAILS.phone, margin + 4, y + 19);
+    doc.text(BIZ_DETAILS.email, margin + 4, y + 24);
+    y += 33;
 
-            <div style="display: flex; justify-content: flex-end; border-top: 2px solid #000; padding-top: 15px;">
-                <div style="text-align: right;">
-                    <span style="font-size: 12px; color: #666; margin-right: 20px;">GRAND TOTAL</span>
-                    <span style="font-size: 20px; font-weight: 900;">₦${tx.total.toLocaleString()}</span>
-                </div>
-            </div>
+    doc.setTextColor(51, 65, 85);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    const wrappedAddress = doc.splitTextToSize(BIZ_DETAILS.address, pageWidth - (margin * 2));
+    doc.text(wrappedAddress, margin, y);
+    y += (wrappedAddress.length * 4.2) + 4;
 
-            <div style="margin-top: 50px; text-align: center; border-top: 1px dashed #eee; padding-top: 20px;">
-                <p style="font-size: 11px; color: #999;">Thank you for your patronage!</p>
-                <p style="font-size: 10px; color: #ccc; margin-top: 5px;">Ref: ${txId.slice(0, 8).toUpperCase()}</p>
-            </div>
-        </div>
-    `;
+    drawRule();
+    y += 5;
 
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write('<html><head><title>Receipt</title><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet"></head><body>');
-    printWindow.document.write(receiptHtml);
-    printWindow.document.write('</body></html>');
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-    }, 4000); // Allow time for rendering
+    const receiptDate = new Date(tx.date);
+    doc.setFontSize(8.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Receipt Ref: ${txId.slice(0, 10).toUpperCase()}`, margin, y);
+    doc.text(`Date: ${receiptDate.toLocaleDateString()} ${receiptDate.toLocaleTimeString()}`, pageWidth - margin, y, { align: 'right' });
+    y += 5.5;
+    doc.text(`Customer: ${tx.customer}`, margin, y);
+    y += 5.5;
+    drawRule();
+    y += 6;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(8.5);
+    doc.text('ITEM', margin, y);
+    doc.text('QTY', colQtyX, y, { align: 'center' });
+    doc.text('PRICE', colPriceX, y, { align: 'right' });
+    doc.text('TOTAL', colTotalX, y, { align: 'right' });
+    y += 3;
+    drawRule();
+    y += 5;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(51, 65, 85);
+    doc.setFontSize(8.3);
+    tx.items.forEach(item => {
+        const itemName = item.is_external ? `${item.item_name} (Ext)` : item.item_name;
+        const wrappedItem = doc.splitTextToSize(itemName, itemColWidth);
+        const rowHeight = Math.max(wrappedItem.length * 4.1, 5);
+        ensureSpace(rowHeight + 3);
+
+        doc.text(wrappedItem, margin, y);
+        doc.text(String(item.quantity), colQtyX, y, { align: 'center' });
+        doc.text(formatMoney(item.sale_price), colPriceX, y, { align: 'right' });
+        doc.text(formatMoney(item.quantity * item.sale_price), colTotalX, y, { align: 'right' });
+
+        y += rowHeight;
+        drawRule(0.5);
+        y += 3;
+    });
+
+    ensureSpace(24);
+    y += 2;
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(margin, y, pageWidth - (margin * 2), 16, 2, 2, 'F');
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.setFontSize(8.5);
+    doc.text('Grand Total', margin + 4, y + 6);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(13);
+    doc.text(formatMoney(tx.total), pageWidth - margin - 4, y + 10, { align: 'right' });
+    y += 23;
+
+    ensureSpace(12);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text('Thank you for your patronage.', pageWidth / 2, y, { align: 'center' });
+
+    const safeDate = new Date(tx.date).toISOString().slice(0, 10);
+    const safeRef = txId.replace(/[^a-z0-9-]/gi, '').slice(0, 10) || 'receipt';
+    doc.save(`receipt-${safeDate}-${safeRef}.pdf`);
 };
 
 function updateChart() {
